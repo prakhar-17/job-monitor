@@ -1,0 +1,335 @@
+# ============================================================
+# Job boards to monitor
+# ============================================================
+# How to find a company's token:
+#
+#   Greenhouse: careers URLs look like https://boards.greenhouse.io/<token>
+#     or https://job-boards.greenhouse.io/<token>. Verify with:
+#       https://boards-api.greenhouse.io/v1/boards/<token>/jobs
+#   Lever: careers pages look like https://jobs.lever.co/<company>. Verify:
+#       https://api.lever.co/v0/postings/<company>?mode=json
+#   Ashby: careers pages look like https://jobs.ashbyhq.com/<name>. Verify:
+#       https://api.ashbyhq.com/posting-api/job-board/<name>
+#
+# Bad/removed tokens are logged as a warning and skipped — never fatal.
+# Tokens are not always the obvious name (Addepar is addepar1, Remote.com
+# is remotecom, Oscar Health is oscar).
+
+greenhouse_boards:
+  - stripe
+  - gusto
+  - brex
+  - mercury
+  - chime
+  - affirm
+  - marqeta
+  - checkr
+  - zuora
+  - billcom          # Bill.com
+  - sofi
+  - upstart
+  - betterment
+  - public           # Public.com
+  - altruist
+  - gemini
+  - fireblocks
+  - alloy
+  - complyadvantage
+  - behavox
+  - lithic
+  - treasuryprime    # Treasury Prime (0 postings when added, board valid)
+  - highnote
+  - oscar            # Oscar Health
+  - coalition
+  - ethos
+  - remotecom        # Remote.com
+  - addepar1         # Addepar
+  - mesh             # VERIFY: board named "Mesh" (NYC office) — may be Mesh
+                     # (crypto) rather than Mesh Payments; remove if alerts look off
+  - extend           # VERIFY: could be Extend warranties (SF) rather than
+                     # Extend virtual cards (NYC); remove if alerts look off
+  - carta
+  - adyen
+  - robinhood
+  - coinbase
+  - ripple
+  - perpay
+  - toast
+  - klaviyo
+  - tripactions      # Navan (still on its pre-rebrand token; board name is "Navan")
+  - upgrade          # VERIFY: board named "Upgrade", plausible but generic slug;
+                     # remove if alerts look off
+  - payoneer
+  - hubspot          # board "HubSpot Product" — 0 postings when added; main
+                     # HubSpot careers are on a custom site
+  - twilio
+  - cloudflare
+  - mongodb
+  - block            # Block (Square/Cash App)
+  - clearstreet      # Clear Street
+
+lever_companies:
+  - wealthfront
+  - finix
+  - kraken           # 0 postings when added — Kraken may have moved ATS
+  - better           # Better.com — 0 postings when added
+  - increase         # 0 postings when added
+
+ashby_boards:
+  - ramp
+  - plaid
+  - airwallex
+  - expensify        # 0 postings when added, board valid
+  - column
+  - capchase
+  - parafin
+  - acorns
+  - stash
+  - polymarket
+  - sardine
+  - persona
+  - socure
+  - moderntreasury   # Modern Treasury
+  - unit             # Unit (unit.co)
+  - deel             # 0 postings when added, board valid
+  - zip              # NOTE: this is Zip (ziphq.com, procurement), not Zip Co (BNPL)
+  - lemonade         # confirmed: Lemonade insurance (TLV offices, telematics roles)
+  - paxos
+  - dave             # Dave (dave.com banking app)
+
+# Not found on Greenhouse/Lever/Ashby (probed 2026-07-02, multiple token
+# variants): Rapyd, WEX, i2c, Airbase, Tipalti, Stampli, Varo, MoneyLion,
+# Bluevine, Grasshopper Bank, LendingClub, Avant, Pipe, Farther, Chainalysis,
+# Circle, Unit21, Moov, Rippling, Varonis, Blackbird Labs, Flywire, PayPal,
+# Klarna, Checkout.com, Nuvei, M Science, Salesforce, GM Financial — these
+# use other ATSes (Workday, Comeet, Rippling's own, custom sites, etc.).
+# Wrong company on the obvious slug (rejected): Current (a Drupal agency),
+# Relay (a San Diego dev shop), Blend (not Blend Labs), Papaya (not Papaya Global).
+
+# ============================================================
+# Filtering
+# ============================================================
+# include_keywords are grouped; the group label is shown in the Telegram
+# alert, e.g. "[Finance] FP&A Analyst". Keywords are matched against a
+# NORMALIZED title: lowercased, "&" expanded to " and ", punctuation
+# stripped. So "fp&a" matches "FP&A", "FP and A", "FP/A", etc.
+# Each group's "exclude" only applies to that group's matches — "manager"
+# kills "Finance Manager" but Product still catches "Product Manager".
+include_keywords:
+  Finance:
+    keywords:
+      - "fp&a"
+      - "financial analyst"
+      - "finance analyst"
+      - "finance associate"
+      - "strategic finance"
+      - "finance transformation"
+      - "financial planning"
+      - "corporate finance analyst"
+      - "revenue analyst"
+      - "treasury analyst"
+      - "treasury associate"
+      - "credit analyst"
+      - "credit associate"
+    exclude:
+      - "manager"
+  Product:
+    keywords:
+      - "product manager"     # any PM; seniority filtered by global excludes
+      - "apm"
+      - "product analyst"
+      - "product operations"
+  "Ops/Data":
+    keywords:
+      - "strategy analyst"
+      - "strategy & operations"
+      - "business operations"
+      - "biz ops"
+      - "operations analyst"
+      - "operations associate"
+      - "revenue operations"
+      - "data analyst"
+      - "business analyst"
+    exclude:
+      - "manager"
+  Grad:
+    keywords:
+      - "graduate"            # also matches Graduate Program, Graduate Analyst...
+      - "new grad"
+      - "early career"
+      - "campus hire"
+    exclude:
+      - "manager"             # Graduate Program Manager runs the program
+      - "recruiter"           # Early Career Recruiter hires for it
+
+# exclude_keywords are matched against the RAW title, lowercased only —
+# punctuation and spaces are kept, so "lead " (trailing space) excludes
+# "Lead Engineer" but not "Team Lead". These apply to EVERY group.
+exclude_keywords:
+  - "director"
+  - "vp"
+  - "vice president"
+  - "head of"
+  - "principal"
+  - "intern"
+  - "staff"
+  - "lead "
+  - "senior"
+  - "group product"
+  - "engineer"    # also covers "engineering"
+
+# A posting is kept if its location contains ANY of these
+# (case-insensitive), or if the location is empty...
+location_keywords:
+  - "New York"
+  - "NYC"
+  - "Remote"
+  - "United States"
+  - "USA"
+  - "Hybrid"
+  - "In-Office"
+  - "In Office"
+  # major US cities (sources like Ashby often list only a city, no country)
+  - "San Francisco"
+  - "Bay Area"
+  - "Silicon Valley"
+  - "Palo Alto"
+  - "Mountain View"
+  - "San Jose"
+  - "Oakland"
+  - "Los Angeles"
+  - "San Diego"
+  - "Seattle"
+  - "Portland"
+  - "Denver"
+  - "Salt Lake City"
+  - "Phoenix"
+  - "Tempe"
+  - "Austin"
+  - "Dallas"
+  - "Houston"
+  - "Chicago"
+  - "Columbus"
+  - "Nashville"
+  - "Charlotte"
+  - "Atlanta"
+  - "Miami"
+  - "Boston"
+  - "Philadelphia"
+  - "Washington"
+  - "Brooklyn"
+  # state abbreviations in ", XX" form
+  - ", AL"
+  - ", AK"
+  - ", AZ"
+  - ", AR"
+  - ", CA"
+  - ", CO"
+  - ", CT"
+  - ", DE"
+  - ", FL"
+  - ", GA"
+  - ", HI"
+  - ", ID"
+  - ", IL"
+  - ", IN"
+  - ", IA"
+  - ", KS"
+  - ", KY"
+  - ", LA"
+  - ", ME"
+  - ", MD"
+  - ", MA"
+  - ", MI"
+  - ", MN"
+  - ", MS"
+  - ", MO"
+  - ", MT"
+  - ", NE"
+  - ", NV"
+  - ", NH"
+  - ", NJ"
+  - ", NM"
+  - ", NY"
+  - ", NC"
+  - ", ND"
+  - ", OH"
+  - ", OK"
+  - ", OR"
+  - ", PA"
+  - ", RI"
+  - ", SC"
+  - ", SD"
+  - ", TN"
+  - ", TX"
+  - ", UT"
+  - ", VT"
+  - ", VA"
+  - ", WA"
+  - ", WV"
+  - ", WI"
+  - ", WY"
+  - ", DC"
+
+# ...UNLESS it also contains one of these (case-insensitive). Catches
+# "Remote Canada", "Remote-Poland", "Toronto, CA", etc. If a multi-location
+# posting lists both a US city and an excluded one, the exclude wins.
+location_exclude_keywords:
+  - "canada"
+  - "toronto"
+  - "vancouver"
+  - "montreal"
+  - "united kingdom"
+  - "london"
+  - "ireland"
+  - "dublin"
+  - "germany"
+  - "berlin"
+  - "munich"
+  - "netherlands"
+  - "amsterdam"
+  - "france"
+  - "paris"
+  - "spain"
+  - "madrid"
+  - "barcelona"
+  - "portugal"
+  - "lisbon"
+  - "italy"
+  - "milan"
+  - "poland"
+  - "warsaw"
+  - "denmark"
+  - "nordics"
+  - "sweden"
+  - "ukraine"
+  - "europe"
+  - "emea"
+  - "apac"
+  - "latam"
+  - "india"
+  - "bangalore"
+  - "chennai"
+  - "gurugram"
+  - "mumbai"
+  - "singapore"
+  - "hong kong"
+  - "china"
+  - "shanghai"
+  - "shenzhen"
+  - "guangzhou"
+  - "japan"
+  - "tokyo"
+  - "philippines"
+  - "manila"
+  - "malaysia"
+  - "australia"
+  - "sydney"
+  - "melbourne"
+  - "brazil"
+  - "mexico"
+  - "israel"
+  - "tel aviv"
+  - "tlv"
+  - "dubai"
+  - "abu dhabi"
